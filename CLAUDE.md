@@ -9,7 +9,7 @@ with one command and no database server.
 
 ```
 src/backend/   SpaceTravel.sln — SpaceTravel.Api (ASP.NET Core) + SpaceTravel.Tests (xUnit)
-src/frontend/  React SPA (planned; branch feat/implement-frontend). Spec: docs/frontend-pdr.md
+src/frontend/  React SPA — 5 pages over the API. Spec: docs/frontend-pdr.md, README: src/frontend/README.md
 docs/          brd-analysis, assumptions, architecture-options, nfr-analysis, how-to-run, frontend-pdr
 plans/         vertical-slice plan + assessment
 scripts/e2e.ps1  scripted walkthrough against a running API on port 5090
@@ -77,10 +77,17 @@ Statuses: shuttle `Idle | EnRoute | Arrived`; request `Queued | Assigned | InTra
 ## Commands
 
 ```bash
-dotnet run --project src/backend/SpaceTravel.Api   # migrates + seeds SQLite on startup
+dotnet run --project src/backend/SpaceTravel.Api   # migrates + seeds SQLite on startup (:5095)
 dotnet test                                        # 52 tests
 dotnet test --filter "FullyQualifiedName~SpaceTravel.Tests.Domain"   # no database needed
+
+cd src/frontend && npm run dev                     # SPA on :5173, proxies /api to :5095
+cd src/frontend && npm run build                   # tsc -b + vite build
+cd src/frontend && npm run gen:api                 # regenerate API types (backend must be up)
 ```
+
+**The API must run on 5095 for the SPA** — the backend has no CORS, so the Vite proxy
+keeps every request same-origin. Re-run `gen:api` after any change to a response DTO.
 
 Reset state by deleting `src/backend/SpaceTravel.Api/spacetravel.db*`. Never commit `.db*` files.
 

@@ -16,10 +16,11 @@ a passenger is described only by species and weight, with no identity carried
 between calls. *If this went further:* the analyst persona implied by "help the team
 to study most traveled planets" is the first thing that would need a real role.
 
-**8. History is an API, not a screen.**
-`GET /api/travel-history/stats` answers "which planets are most travelled" directly.
-No admin UI was built — the brief asks for the data, and a front end is out of scope
-for this backend.
+**8. History is an API first; the screen came second.**
+`GET /api/travel-history/stats` answers "which planets are most travelled" directly,
+and did so before any UI existed. The SPA in [`src/frontend/`](../src/frontend/) now
+renders it, but adds no capability of its own — it is a client of the same anonymous
+API, and every question the brief asks can still be answered with `curl`.
 
 ## The call
 
@@ -157,6 +158,49 @@ distributed lock without touching `Domain/` or `Features/`.
 Each call is treated as a legitimate independent request. The brief does not raise
 it, and guessing at a de-dup window would invent a rule nobody asked for.
 
+## The UI
+
+Decisions made while building the SPA. Its full specification, with captured payloads,
+is [`frontend-pdr.md`](frontend-pdr.md); these are the calls made on top of it.
+
+**17. The SPA polls, because the API gives it no choice.**
+The simulation moves shuttles every 500 ms and there is no WebSocket, SSE, or SignalR
+endpoint. The fleet dashboard polls at 1 s; a single call polls at 1 s and **stops on
+`Completed`/`Rejected`**, which are terminal; planets are fetched once and cached
+forever; history and stats refetch on demand. *If this went further:* SignalR would
+remove the polling entirely, and is the single largest improvement available to the UI.
+
+**18. A failed poll never blanks a page that already loaded.**
+`loading` is true only on the *first* fetch. After that, stale data stays on screen and
+the failure appears as a dismissible amber banner. A dashboard that erases itself
+because one request in sixty timed out is worse than a slightly stale one.
+
+**19. An unfittable party can still be submitted.**
+The call form warns when a party exceeds the fleet's ceilings but does not block the
+submit. Capacity is a business decision owned by `Fleet`, which is why it returns
+`201` + `outcome: "Rejected"` rather than `400` — and rejections are exactly the demand
+signal assumption 12 records and the stats page surfaces. Blocking the submit would
+hide it. The form's advisory ceilings are read from `GET /api/shuttles` rather than
+hardcoded, because capacity is configuration (assumption 9).
+
+**20. A rejected call keeps the user on the form; an accepted one navigates.**
+`Assigned` and `Queued` go straight to `/requests/{id}`, where the call can be watched
+live. `Rejected` is terminal the instant it is created, so there is nothing to watch —
+the reason is shown in place, with a link to the record.
+
+**21. The dev proxy's `502` is reported as "the API is unreachable".**
+The backend has no CORS policy, so the SPA is served through a Vite proxy that makes
+every request same-origin. When the API is down that proxy answers `502` with an empty
+body — not a network error. Without special handling the user would be told
+"Request failed (502)", so `apiFetch` treats a gateway status carrying no error
+envelope as unreachability and names the likely cause instead.
+
+**22. There is no fleet-wide view of the queue.**
+A queued call is visible on its own detail page, but nothing lists every waiting party,
+because no endpoint exposes one — queued requests belong to no shuttle and so appear in
+no manifest. Building it would mean a new backend read model, which the brief does not
+ask for.
+
 ---
 
 ## Known limits
@@ -168,6 +212,11 @@ Stated plainly rather than left to be discovered:
   nothing else: no distances, speeds, or fuel figures.
 - **No multi-stop routing** — a shuttle serves one origin and one destination per trip.
 - **No authentication**, so anyone can call a shuttle or read the history.
+- **The SPA is a development-time client.** `npm run build` produces a static bundle, but
+  nothing serves it: the Vite proxy that stands in for CORS is a dev-server feature. To
+  deploy it, either add a CORS policy to `Program.cs` or copy `dist/` into the API's
+  `wwwroot` so the origins match. The latter keeps *"running the server should be easy"*
+  true and is the recommended route.
 - **The batching window at a dock is one tick (~500 ms).** Parties batch reliably onto
   a shuttle flying in to collect them (a window of seconds), but two walk-up calls at
   the same dock only share a shuttle if they arrive within the same tick. Widening

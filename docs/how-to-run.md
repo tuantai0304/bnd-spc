@@ -22,6 +22,33 @@ idempotent and never duplicates the fleet.
 
 To start over, delete `spacetravel.db*` and run again.
 
+## Run the UI
+
+Optional — the API is complete on its own. The SPA needs **Node 20+** and a running API.
+
+```bash
+# terminal 1
+dotnet run --project src/backend/SpaceTravel.Api    # http://localhost:5095
+
+# terminal 2
+cd src/frontend
+npm install
+npm run dev                                          # http://localhost:5173
+```
+
+Open <http://localhost:5173>: a live fleet dashboard, a form to call a shuttle, the
+travel history and the per-planet stats.
+
+> The backend registers no CORS policy, so the SPA never calls port 5095 directly —
+> the Vite dev server proxies `/api` to it, keeping every request same-origin. This is
+> why the API must be on **5095** specifically (the only profile in
+> [`launchSettings.json`](../src/backend/SpaceTravel.Api/Properties/launchSettings.json)),
+> and why no build-time API URL is needed.
+
+Details, scripts, and the frontend's own gotchas are in
+[`src/frontend/README.md`](../src/frontend/README.md); the full specification is
+[`frontend-pdr.md`](frontend-pdr.md).
+
 ## Test
 
 ```bash
