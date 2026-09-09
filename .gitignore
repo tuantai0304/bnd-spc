@@ -1,0 +1,22 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+artifacts/
+
+# SQLite (the app creates and seeds this on first run)
+*.db
+*.db-shm
+*.db-wal
+
+# IDE
+.vs/
+.idea/
+*.user
+*.suo
+
+# Test output
+TestResults/
+*.trx
+coverage*.xml
