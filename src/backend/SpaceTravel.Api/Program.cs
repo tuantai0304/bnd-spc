@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore;
 using SpaceTravel.Api.Code.Dispatch;
 using SpaceTravel.Api.Code.Endpoints;
 using SpaceTravel.Api.Code.Errors;
+using SpaceTravel.Api.Code.OpenApi;
 using SpaceTravel.Api.Code.Options;
 using SpaceTravel.Api.Code.Simulation;
 using SpaceTravel.Api.Code.Time;
@@ -31,6 +32,11 @@ builder.Services.AddHostedService<SimulationTickService>();
 
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+
+// The machine-readable contract the front end generates its TypeScript types
+// from. Every endpoint already declares .Produces<T>(), so this needs no
+// per-endpoint annotation. See docs/frontend-pdr.md.
+builder.Services.AddOpenApi(o => o.AddSchemaTransformer<NumericSchemaTransformer>());
 
 builder.Services.AddHttpLogging(o =>
     o.LoggingFields = Microsoft.AspNetCore.HttpLogging.HttpLoggingFields.RequestPath
@@ -65,13 +71,27 @@ using (var scope = app.Services.CreateScope())
 app.UseExceptionHandler();
 app.UseHttpLogging();
 
-app.MapGet("/health", () => Results.Ok(new { status = "healthy" }))
-   .WithName("Health");
+// Development only: the document describes a local dev server, and there is no
+// reason to publish the API's shape in production.
+if (app.Environment.IsDevelopment())
+{
+    app.MapOpenApi();
+}
+
+app.MapGet("/health", () => Results.Ok(new HealthResponse("healthy")))
+   .WithName("Health")
+   .Produces<HealthResponse>();
 
 // Every slice registers its own routes.
 app.MapEndpoints();
 
 app.Run();
+
+/// <summary>
+/// Named rather than anonymous so /health carries a real schema in the OpenAPI
+/// document. Serializes identically: {"status":"healthy"}.
+/// </summary>
+public sealed record HealthResponse(string Status);
 
 /// <summary>Exposed so integration tests can boot the app with WebApplicationFactory.</summary>
 public partial class Program;
