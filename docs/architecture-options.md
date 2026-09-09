@@ -14,8 +14,11 @@ illustrate how the passenger pickup and shuttle system works,"
 
 **How to read this document:** each option is scored against the same six
 dimensions, then against the five NFR categories from `nfr-analysis.md`
-(Availability, Performance, Scalability, Security, Cost). The comparison table
-in §4 gives the side-by-side view; §5 gives the recommendation.
+(Availability, Performance, Scalability, Security, Cost). §4 covers Option D
+(Vertical Slice Architecture), whose infrastructure is identical to Option A
+— see its opening note for why it's scored differently from B/C. The
+comparison table in §5 gives the side-by-side view; §6 gives the
+recommendation.
 
 ---
 
@@ -403,34 +406,188 @@ largely orthogonal to the actual business problem being solved.
 
 ---
 
-## 4. Side-by-side comparison
+## 4. Option D — Vertical Slice Architecture
 
-| Dimension | A — Modular Monolith | B — Microservices | C — Serverless |
-|---|---|---|---|
-| Architecture style | Single deployable, module boundaries in-process | Independently deployed services | Function-per-capability |
-| Atomic dispatch (Edge Case #4) | In-process lock — trivial | Distributed reserve across services — hard | Durable Entity — built-in, but cold-start risk |
-| DB | SQLite, embedded, 1 file | Per-service DB or shared Postgres | Managed cloud NoSQL |
-| API style | REST + SignalR | REST + gRPC + events | REST (HTTP triggers) + events |
-| Auth | None (confirmed scope) | None at edge, but service-to-service auth needed | None at edge, function keys available |
-| Deployment | 1 Docker container | 5+ containers + broker | Cloud account required |
-| Meets Cost NFR ($0, single container, no complex DB) | Yes, exactly | No | No |
-| Meets Performance NFR (p50<100ms dispatch) | Yes, comfortably | At risk (extra network hops) | At risk (cold starts) |
-| Meets Availability NFR (RTO<5min, RPO zero) | Yes | Harder to reason about (more moving parts) | Depends on provider SLA, different risk profile |
-| Team size | 1-2 | 3-5+ | 1-2 (different skillset) |
-| Complexity | Low-Medium | High | Medium-High |
+**A note before the six dimensions:** unlike Options A/B/C, VSA is not an
+infrastructure choice — it's a **code-organization style for a single
+deployable**. It answers "how do we arrange the code inside the process,"
+not "how many processes / where do they run." Concretely, that means Option
+D's DB choice, auth strategy, and deployment model are **identical to Option
+A's** — the only dimensions that actually differ are architecture style,
+project structure, and (to a lesser extent) API design. It is scored here as
+a full 4th option per the requested comparison, but the honest framing is
+that VSA is a candidate *internal structure for Option A*, not a competing
+peer of B or C the way A/B/C compete with each other.
+
+### 4.1 Architecture style
+Each use case ("slice") — `CallShuttle`, `GetPlanets`, `GetShuttleStatus`,
+`GetHistoryStats` — owns its full vertical: request contract, validator,
+handler, and response, with no shared generic Service/Repository layer in
+between. A slice's handler talks directly to the same in-memory fleet state
+and EF Core `DbContext` that Option A already defined; VSA changes how those
+use cases are *packaged*, not what they call into. Still a single ASP.NET
+Core process, same as Option A.
+
+### 4.2 Project structure and module boundaries
+Boundaries are drawn by **use case (verb)** instead of Option A's
+**bounded context (noun)** grouping (Fleet/Dispatch/Planets/History):
+
+```
+src/
+├── SpaceAcademy.Api/
+│   ├── Features/
+│   │   ├── CallShuttle/
+│   │   │   ├── CallShuttleEndpoint.cs     # Minimal API route registration
+│   │   │   ├── CallShuttleRequest.cs
+│   │   │   ├── CallShuttleValidator.cs     # FluentValidation, scoped to this slice only
+│   │   │   ├── CallShuttleHandler.cs       # orchestrates the use case; calls Shared/
+│   │   │   └── CallShuttleResponse.cs
+│   │   ├── GetPlanets/
+│   │   ├── GetShuttleStatus/
+│   │   └── GetHistoryStats/
+│   ├── Shared/
+│   │   ├── FleetState.cs                   # the SAME lock-guarded in-memory singleton
+│   │   │                                      as Option A — deliberately NOT duplicated
+│   │   │                                      per slice (see 4.7 for why this matters)
+│   │   ├── ShuttleStateMachine.cs           # Idle/EnRoute/Arrived transitions — shared
+│   │   └── AppDbContext.cs                 # EF Core / SQLite — shared, not duplicated
+│   └── Program.cs
+└── SpaceAcademy.Web/                        # unchanged from Option A
+```
+
+The critical design rule, and the one place this write-up diverges from a
+"pure" VSA pitch: true cross-cutting domain invariants — the capacity caps,
+the atomic reserve, the state machine — stay centralized in `Shared/`, not
+duplicated per slice. A slice's handler is thin orchestration ("validate,
+call FleetState.TryReserve(...), call the DbContext to persist") — VSA is
+applied to *use-case orchestration*, not to the domain rules a "bug-free"
+BRD goal can't afford to have implemented twice, slightly differently, in
+two different features.
+
+### 4.3 Database choice and schema approach
+**Unchanged from Option A** — SQLite via EF Core, same schema
+(`Planets`/`Shuttles`/`TravelRequests`/`TravelRequestPassengers`). VSA does
+not touch this dimension.
+
+### 4.4 API design approach
+Same **REST + SignalR** combination as Option A, but each REST endpoint is
+defined and registered inside its own slice folder (Minimal API's
+`MapPost`/`MapGet` colocated with the handler) rather than grouped into a
+controller per module. FastEndpoints is a viable library alternative to
+hand-rolled Minimal API + MediatR if less boilerplate is wanted; either
+choice is a convention decision, not an architectural one.
+
+### 4.5 Authentication and authorization strategy
+**Unchanged from Option A** — none, per the confirmed scope
+([brd-analysis.md §7.2](brd-analysis.md)), same HTTPS baseline. One minor,
+genuine upside: input validation is naturally scoped per-slice (each
+validator only knows about its own request shape), which is a slightly
+tighter default than one shared validation layer trying to cover every use
+case, though the practical difference at this domain's size is small.
+
+### 4.6 Deployment model
+**Unchanged from Option A** — single multi-stage Dockerfile, one container,
+SQLite file on a mounted volume. Nothing about organizing code as vertical
+slices changes how the application ships or runs.
+
+### 4.7 Pros and cons
+
+**Pros**
+- Fastest path to add or change one use case in isolation — touch one
+  `Features/<UseCase>/` folder, not a module spanning several technical
+  layers.
+- Strong per-slice testability: a handler test exercises one use case
+  end-to-end without mocking a layered service graph.
+- Less generic abstraction (no speculative `IShuttleRepository`,
+  `IShuttleService` interfaces built "for later") for a feature set this
+  small (roughly 4-6 use cases total) — directly reduces boilerplate the BRD
+  doesn't need.
+- Onboarding: reading `Features/CallShuttle/` end to end shows the whole use
+  case in one place, no layer-hopping.
+
+**Cons**
+- **Duplication risk is the real cost, and it's a "bug-free"-goal risk, not
+  a style preference.** VSA's most common failure mode is re-implementing a
+  shared invariant slightly differently in two slices — e.g. if a future
+  "admin reassigns a shuttle" feature reimplements the capacity check instead
+  of calling the same `FleetState.TryReserve`, the two code paths can drift
+  and silently violate Edge Case #4's atomicity guarantee. This has to be a
+  held discipline (everything touching shared state lives in `Shared/`,
+  never per-slice), not something the folder structure itself enforces.
+- **Weaker future-extraction story than Option A's noun-based module split.**
+  Option A's Fleet/Dispatch/Planets/History boundaries map directly onto
+  plausible future service boundaries (§2 of this document draws Option B's
+  services along exactly those lines). VSA's verb-based slices
+  (CallShuttle, GetHistoryStats) don't map onto service boundaries the same
+  way — "which slices would extract together into a future microservice" is
+  a less obvious question to answer. This is a real, if modest at this
+  domain's size, trade-off against the "future-proofed" framing Option A
+  relied on.
+- With only a handful of use cases in this domain, VSA's headline benefit
+  (avoiding a bloated shared service class as feature count grows into the
+  dozens) has little surface area to prove itself on here — the case for it
+  gets stronger as the endpoint count grows, not at 5.
+
+### 4.8 NFR fit
+Because the infrastructure is identical to Option A, four of the five NFR
+categories are **unaffected** — satisfied or traded off exactly as Option A
+already documented in §1.8. The table below states that plainly rather than
+re-deriving it:
+
+| NFR category | vs. Option A |
+|---|---|
+| Availability | Unchanged — same single container, same durable write-through |
+| Performance | Unchanged — same in-memory dispatch path, same latency profile |
+| Scalability | Unchanged — same single-instance ceiling and config-only growth path |
+| Security | Unchanged — same no-auth scope; per-slice validation is a minor, non-NFR-driving upside |
+| Cost | Unchanged — identical $0/single-container/embedded-DB posture |
+
+The dimension VSA actually moves is **not** one of the five named NFR
+categories — it's the BRD's top-level "bug-free" and "future-proofed" goals,
+via the duplication risk and weaker extraction-seam trade-offs in §4.7 above.
+
+### 4.9 Team size and expertise requirements
+**1-2 engineers**, same as Option A, plus specific familiarity with the
+vertical-slice/CQRS-lite convention (a naming/organization convention, not a
+new technology) and, critically, the discipline to keep shared invariants
+centralized rather than re-implemented per slice.
+
+### 4.10 Estimated complexity
+**Low** — identical infrastructure to Option A; the only delta is a
+code-organization convention, not new infrastructure or new failure modes.
 
 ---
 
-## 5. Recommendation
+## 5. Side-by-side comparison
+
+| Dimension | A — Modular Monolith | B — Microservices | C — Serverless | D — Vertical Slice |
+|---|---|---|---|---|
+| Architecture style | Single deployable, module boundaries in-process | Independently deployed services | Function-per-capability | Single deployable, use-case-per-slice |
+| Atomic dispatch (Edge Case #4) | In-process lock — trivial | Distributed reserve across services — hard | Durable Entity — built-in, but cold-start risk | Same in-process lock as A, shared via `Shared/FleetState` — trivial, but only if not duplicated per slice |
+| DB | SQLite, embedded, 1 file | Per-service DB or shared Postgres | Managed cloud NoSQL | Same as A — SQLite, embedded, 1 file |
+| API style | REST + SignalR | REST + gRPC + events | REST (HTTP triggers) + events | Same as A — REST + SignalR, colocated per slice |
+| Auth | None (confirmed scope) | None at edge, but service-to-service auth needed | None at edge, function keys available | Same as A — none |
+| Deployment | 1 Docker container | 5+ containers + broker | Cloud account required | Same as A — 1 Docker container |
+| Meets Cost NFR ($0, single container, no complex DB) | Yes, exactly | No | No | Yes, exactly (identical to A) |
+| Meets Performance NFR (p50<100ms dispatch) | Yes, comfortably | At risk (extra network hops) | At risk (cold starts) | Yes, comfortably (identical to A) |
+| Meets Availability NFR (RTO<5min, RPO zero) | Yes | Harder to reason about (more moving parts) | Depends on provider SLA, different risk profile | Yes (identical to A) |
+| Future-extraction seam quality | Strong — noun-based modules map to plausible service boundaries | N/A — already extracted | N/A — already extracted | Weaker — verb-based slices don't map to service boundaries as cleanly |
+| Team size | 1-2 | 3-5+ | 1-2 (different skillset) | 1-2 |
+| Complexity | Low-Medium | High | Medium-High | Low |
+
+---
+
+## 6. Recommendation
 
 **Recommend Option A — Modular Monolith.**
 
 Every numeric target in `nfr-analysis.md` was derived from four scoping
 decisions stated at its top: take-home challenge context, self-hosted single
 container, demo-scale traffic, no compliance/auth regime
-([nfr-analysis.md, opening table](nfr-analysis.md)). Option A is the only one
-of the three that satisfies all five NFR categories **as literally scoped**,
-not just "could satisfy in principle":
+([nfr-analysis.md, opening table](nfr-analysis.md)). Option A (and, since it
+shares Option A's infrastructure exactly, Option D) is the only one of the
+four that satisfies all five NFR categories **as literally scoped**, not just
+"could satisfy in principle":
 
 - It hits the Cost NFR's $0/single-container/embedded-DB target exactly,
   which is also Business Rule 6 verbatim ("no complex database systems").
@@ -462,3 +619,50 @@ submission to a real production rollout — the same trigger condition
 service boundaries (already drawn along the same module lines as Option A)
 would be the natural next step, extracted one module at a time rather than
 as a rewrite.
+
+### 6.1 Where Option D (Vertical Slice Architecture) fits into this
+
+Option D isn't a real alternative *to* Option A the way B and C are — §4's
+opening note already says so, and the comparison table in §5 shows every
+infrastructure-facing row (DB, auth, deployment, all three satisfiable NFR
+categories) as identical between A and D. The actual decision on the table
+is narrower than "A or D": it's **how Option A's internals should be
+organized** — by bounded-context module (A, as originally specified) or by
+use-case slice (D).
+
+**Concrete recommendation: adopt a hybrid, not a pure version of either.**
+Keep Option A's four bounded contexts as the top-level grouping (`Fleet`,
+`Dispatch`, `Planets`, `History`), and organize the *use cases within each*
+as vertical slices:
+
+```
+src/SpaceAcademy.Api/
+├── Dispatch/
+│   ├── Features/
+│   │   └── CallShuttle/          # slice: request, validator, handler, response
+│   └── Shared/
+│       └── FleetState.cs          # the one, non-duplicated, lock-guarded source of
+│                                    truth for capacity + the state machine
+├── History/
+│   └── Features/
+│       └── GetHistoryStats/
+├── Planets/
+│   └── Features/
+│       └── GetPlanets/
+└── Fleet/
+    └── Features/
+        └── GetShuttleStatus/
+```
+
+This gets Option D's real, genuine wins — thin, testable, single-purpose
+use-case handlers with minimal generic-layer boilerplate for a domain that
+only has a handful of use cases — without its real cost: the noun-based
+module boundary is preserved, so the "future-proofed" extraction-seam story
+from §1.2 stays intact (a bounded context, not a scattered set of verbs, is
+still the unit you'd lift into a service later), and the one invariant that
+must never be duplicated — the atomic capacity check-and-reserve — has one
+obvious home (`Dispatch/Shared/FleetState.cs`) rather than an ambiguous one.
+In short: **use Option A's module map to answer "where does this code
+live," and Option D's slice discipline to answer "how is a single use case
+inside that module structured."** They were never actually competing
+answers to the same question.
