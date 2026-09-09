@@ -1,0 +1,47 @@
+@import "tailwindcss";
+
+/*
+  Tailwind v4 is configured here, in CSS — there is deliberately no
+  tailwind.config.js and no postcss.config.js; @tailwindcss/vite handles both.
+
+  Status colours are theme tokens rather than hex literals so a badge, a border
+  and a progress bar can never drift apart. Add a token; don't inline a colour.
+*/
+@theme {
+  /* Surfaces — a dark cockpit reads better for a screen that never sleeps. */
+  --color-void: oklch(0.17 0.02 265);
+  --color-panel: oklch(0.22 0.02 265);
+  --color-raised: oklch(0.26 0.02 265);
+  --color-edge: oklch(0.33 0.02 265);
+  --color-ink: oklch(0.96 0.01 265);
+  --color-muted: oklch(0.71 0.02 265);
+  --color-accent: oklch(0.72 0.16 250);
+
+  /* ShuttleState */
+  --color-idle: oklch(0.65 0.02 250);
+  --color-enroute: oklch(0.72 0.16 250);
+  --color-arrived: oklch(0.75 0.15 150);
+
+  /* TravelRequestStatus — Queued/Assigned/InTransit/Completed/Rejected.
+     InTransit reuses --color-enroute and Completed reuses --color-arrived,
+     because they describe the same physical situation from two viewpoints. */
+  --color-queued: oklch(0.78 0.13 90);
+  --color-assigned: oklch(0.76 0.11 200);
+  --color-rejected: oklch(0.65 0.20 25);
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+  }
+
+  body {
+    @apply bg-void text-ink antialiased;
+    font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+
+  /* Tabular figures keep a 1 Hz countdown from jittering its own column. */
+  .tnum {
+    font-variant-numeric: tabular-nums;
+  }
+}
