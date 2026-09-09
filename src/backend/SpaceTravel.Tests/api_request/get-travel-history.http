@@ -1,0 +1,13 @@
+@baseUrl = http://localhost:5095
+
+### Paged log of every call that completed or was rejected (defaults: page=1, pageSize=25).
+GET {{baseUrl}}/api/travel-history
+Accept: application/json
+
+### With explicit paging.
+GET {{baseUrl}}/api/travel-history?page=1&pageSize=10
+Accept: application/json
+
+### Validation error: page size over the max (100).
+GET {{baseUrl}}/api/travel-history?page=1&pageSize=500
+Accept: application/json

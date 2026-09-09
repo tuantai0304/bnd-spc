@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\SpaceTravel.Api\SpaceTravel.Api.csproj" />
+    <ProjectReference Include="..\SpaceTravel.Api\SpaceTravel.Api.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,49 @@
+@baseUrl = http://localhost:5095
+
+### Call a shuttle from a space dock to another planet (happy path).
+# Seeded planets: 1=Angel 1, 2=Boreth, 3=Aurelia, 4=Blue Horizon, 5=Argus X
+POST {{baseUrl}}/api/travel-requests
+Content-Type: application/json
+
+{
+  "originPlanetId": 1,
+  "destinationPlanetId": 2,
+  "lifeForms": [
+    { "species": "Human", "weightKg": 70 },
+    { "species": "Ewok", "weightKg": 25 }
+  ]
+}
+
+### Validation error: destination same as origin.
+POST {{baseUrl}}/api/travel-requests
+Content-Type: application/json
+
+{
+  "originPlanetId": 1,
+  "destinationPlanetId": 1,
+  "lifeForms": [
+    { "species": "Human", "weightKg": 70 }
+  ]
+}
+
+### Validation error: unknown planet id.
+POST {{baseUrl}}/api/travel-requests
+Content-Type: application/json
+
+{
+  "originPlanetId": 1,
+  "destinationPlanetId": 999,
+  "lifeForms": [
+    { "species": "Human", "weightKg": 70 }
+  ]
+}
+
+### Validation error: no life forms.
+POST {{baseUrl}}/api/travel-requests
+Content-Type: application/json
+
+{
+  "originPlanetId": 1,
+  "destinationPlanetId": 2,
+  "lifeForms": []
+}

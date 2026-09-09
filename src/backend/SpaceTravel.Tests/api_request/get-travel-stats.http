@@ -1,0 +1,5 @@
+@baseUrl = http://localhost:5095
+
+### Trips per destination planet, most travelled first.
+GET {{baseUrl}}/api/travel-history/stats
+Accept: application/json

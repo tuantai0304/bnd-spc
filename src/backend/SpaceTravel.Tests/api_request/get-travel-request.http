@@ -1,0 +1,10 @@
+@baseUrl = http://localhost:5095
+
+### Check the status of one call.
+# Replace {id} with a TravelRequestId returned from call-shuttle.http.
+GET {{baseUrl}}/api/travel-requests/1
+Accept: application/json
+
+### Not found case.
+GET {{baseUrl}}/api/travel-requests/999999
+Accept: application/json

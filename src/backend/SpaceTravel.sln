@@ -1,15 +1,10 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{827E0CD3-B72D-47B6-A68D-7590B98EB39B}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceTravel.Api", "SpaceTravel.Api\SpaceTravel.Api.csproj", "{A4CA08ED-7E35-4930-9DD9-34D363580722}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceTravel.Api", "src\SpaceTravel.Api\SpaceTravel.Api.csproj", "{A4CA08ED-7E35-4930-9DD9-34D363580722}"
-EndProject
-Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0AB3BF05-4346-4AA6-1389-037BE0695223}"
-EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceTravel.Tests", "tests\SpaceTravel.Tests\SpaceTravel.Tests.csproj", "{14C9FB65-3A72-4586-89D0-9B0BAEE27C49}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SpaceTravel.Tests", "SpaceTravel.Tests\SpaceTravel.Tests.csproj", "{14C9FB65-3A72-4586-89D0-9B0BAEE27C49}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -48,9 +43,5 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
-	EndGlobalSection
-	GlobalSection(NestedProjects) = preSolution
-		{A4CA08ED-7E35-4930-9DD9-34D363580722} = {827E0CD3-B72D-47B6-A68D-7590B98EB39B}
-		{14C9FB65-3A72-4586-89D0-9B0BAEE27C49} = {0AB3BF05-4346-4AA6-1389-037BE0695223}
 	EndGlobalSection
 EndGlobal

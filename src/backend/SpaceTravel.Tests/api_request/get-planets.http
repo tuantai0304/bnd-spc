@@ -1,0 +1,5 @@
+@baseUrl = http://localhost:5095
+
+### List the known planets and their space docks, nearest first.
+GET {{baseUrl}}/api/planets
+Accept: application/json
