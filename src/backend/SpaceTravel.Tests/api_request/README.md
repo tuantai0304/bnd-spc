@@ -5,7 +5,7 @@ file per feature. Open with the VS Code [REST Client](https://marketplace.visual
 extension (or Visual Studio's built-in `.http` editor) and click **Send Request**
 above each request.
 
-1. Start the API: `dotnet run --project src/SpaceTravel.Api` (listens on
+1. Start the API: `dotnet run --project src/backend/SpaceTravel.Api` (listens on
    `http://localhost:5095`, see `Properties/launchSettings.json`).
 2. Open any file below and send requests top to bottom.
 

@@ -8,10 +8,10 @@
 ## Run
 
 ```bash
-dotnet run --project src/SpaceTravel.Api
+dotnet run --project src/backend/SpaceTravel.Api
 ```
 
-On first start the app creates `src/SpaceTravel.Api/spacetravel.db`, applies its
+On first start the app creates `src/backend/SpaceTravel.Api/spacetravel.db`, applies its
 migration, and seeds the world. It then listens on the URL printed in the console
 (typically `http://localhost:5000`). Restarting keeps everything — the seeder is
 idempotent and never duplicates the fleet.
@@ -49,7 +49,7 @@ Four shuttles (`Shuttle 1`–`Shuttle 4`), all idle at Angel 1, each carrying up
 
 A leg takes `max(1, |rank difference|) × 3 seconds`, so Angel 1 → Argus X is 12
 seconds. All of this is configurable in
-[`appsettings.json`](../src/SpaceTravel.Api/appsettings.json) — planets, fleet size,
+[`appsettings.json`](../src/backend/SpaceTravel.Api/appsettings.json) — planets, fleet size,
 capacity caps and simulation timings are configuration, not code.
 
 ## API
