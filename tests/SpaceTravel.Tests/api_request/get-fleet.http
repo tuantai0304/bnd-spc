@@ -1,0 +1,5 @@
+@baseUrl = http://localhost:5095
+
+### Live state of every shuttle: location, trip, manifest and spare capacity.
+GET {{baseUrl}}/api/shuttles
+Accept: application/json
